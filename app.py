@@ -45,44 +45,44 @@ def recursive_to_dict(obj):
         return [recursive_to_dict(v) for v in obj]
     return obj
 
-# --- AUTHENTICATION LOGIC (BULLETPROOF) ---
+# --- AUTHENTICATION LOGIC (MEMORY ONLY - NO FILES) ---
 @st.cache_data(show_spinner=False)
 def get_gmail_service():
     creds = None
     
-    # 1. CLOUD KEY GENERATION
-    if not os.path.exists('credentials.json'):
-        if 'google_credentials' in st.secrets:
-            # Convert secrets to a standard dict to avoid "TypeError: Not JSON Serializable"
-            secrets_dict = recursive_to_dict(st.secrets['google_credentials'])
-            
-            # CHECK: Does the user have the "installed" key? If not, wrap it.
-            # This fixes the error if you pasted "Flat" secrets instead of "Nested" ones.
-            if "installed" not in secrets_dict and "web" not in secrets_dict:
-                secrets_dict = {"installed": secrets_dict}
-                
-            with open('credentials.json', 'w') as f:
-                json.dump(secrets_dict, f)
-
-    # 2. Load Token
+    # 1. Load Token if exists (Local or Cloud)
     if os.path.exists('token.pickle'):
         with open('token.pickle', 'rb') as token:
             creds = pickle.load(token)
     
-    # 3. Login Flow
+    # 2. Login Flow
     if not creds or not creds.valid:
         if creds and creds.expired and creds.refresh_token:
             creds.refresh(Request())
         else:
-            if not os.path.exists('credentials.json'):
-                st.error("🚨 Missing credentials")
-                st.markdown("""<div class="error-box">Cloud credentials not found. Check Streamlit Secrets.</div>""", unsafe_allow_html=True)
+            # CLOUD LOGIC: Read directly from Secrets (Memory)
+            if 'google_credentials' in st.secrets:
+                secrets_dict = recursive_to_dict(st.secrets['google_credentials'])
+                
+                # Wrap in "installed" if missing (Fixes format issues)
+                if "installed" not in secrets_dict and "web" not in secrets_dict:
+                    secrets_dict = {"installed": secrets_dict}
+                
+                # Reads config from MEMORY, ignoring broken files
+                flow = InstalledAppFlow.from_client_config(secrets_dict, SCOPES)
+                
+            # LOCAL LOGIC: Fallback to file if secrets don't exist
+            elif os.path.exists('credentials.json'):
+                flow = InstalledAppFlow.from_client_secrets_file('credentials.json', SCOPES)
+            else:
+                st.error("🚨 Missing Credentials")
+                st.markdown("""<div class="error-box">No credentials found in Secrets or local file.</div>""", unsafe_allow_html=True)
                 return None
-            
-            flow = InstalledAppFlow.from_client_secrets_file('credentials.json', SCOPES)
-            # open_browser=False is required for Cloud deployment
+
+            # Run the auth flow
             creds = flow.run_local_server(port=0, open_browser=False)
             
+        # Save token for next time
         with open('token.pickle', 'wb') as token:
             pickle.dump(creds, token)
 
