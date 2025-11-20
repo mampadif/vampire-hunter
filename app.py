@@ -1,4 +1,4 @@
- import streamlit as st
+import streamlit as st
 import os
 import pickle
 import re
@@ -168,3 +168,4 @@ if scan_button:
         else: st.info("✅ No subscriptions found! Your inbox is clean.")
 st.markdown("---")
 st.markdown("<div style='text-align: center; color: #666;'>⚠️ Estimates based on email subject lines. Verify with your bank.</div>", unsafe_allow_html=True)
+
