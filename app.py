@@ -21,36 +21,21 @@ SCOPES = ['https://www.googleapis.com/auth/gmail.readonly']
 
 st.set_page_config(page_title="Vampire Subscription Hunter", page_icon="🧛", layout="wide", initial_sidebar_state="expanded")
 
-# --- CSS STYLING ---
-st.markdown("""
-<style>
-    .main-header { font-size: 3rem; color: #1f77b4; text-align: center; margin-bottom: 2rem; font-weight: 700; }
-    .metric-card { background-color: #f0f2f6; padding: 1.5rem; border-radius: 10px; border-left: 4px solid #1f77b4; }
-    .success-box { background-color: #d4edda; border: 1px solid #c3e6cb; border-radius: 8px; padding: 1rem; margin: 1rem 0; color: #155724; }
-    .warning-box { background-color: #fff3cd; border: 1px solid #ffeaa7; border-radius: 8px; padding: 1rem; margin: 1rem 0; color: #856404; }
-    .error-box { background-color: #f8d7da; border: 1px solid #f5c6cb; border-radius: 8px; padding: 1rem; margin: 1rem 0; color: #721c24; }
-    .cta-button { display: inline-block; padding: 12px 24px; margin: 10px; color: white; text-decoration: none; border-radius: 5px; font-weight: bold; text-align: center; }
-    .cta-rocket { background-color: #FF4B4B; }
-    .cta-trim { background-color: #00C853; }
-    .cta-guard { background-color: #2962FF; }
-</style>
-""", unsafe_allow_html=True)
-
 # --- HELPER: RECURSIVE DICT CONVERTER ---
 def recursive_to_dict(obj):
-    """Converts Streamlit Secrets (AttrDict) into a standard Python dict recursively."""
+    """Converts Streamlit Secrets (AttrDict) into a standard Python dict."""
     if hasattr(obj, "items"):
         return {k: recursive_to_dict(v) for k, v in obj.items()}
     if isinstance(obj, list):
         return [recursive_to_dict(v) for v in obj]
     return obj
 
-# --- AUTHENTICATION LOGIC (MEMORY ONLY - NO FILES) ---
+# --- AUTHENTICATION LOGIC (MEMORY ONLY) ---
 @st.cache_data(show_spinner=False)
 def get_gmail_service():
     creds = None
     
-    # 1. Load Token if exists (Local or Cloud)
+    # 1. Load Token if exists
     if os.path.exists('token.pickle'):
         with open('token.pickle', 'rb') as token:
             creds = pickle.load(token)
@@ -60,35 +45,33 @@ def get_gmail_service():
         if creds and creds.expired and creds.refresh_token:
             creds.refresh(Request())
         else:
-            # CLOUD LOGIC: Read directly from Secrets (Memory)
+            # DIRECT MEMORY READ: No file creation needed
             if 'google_credentials' in st.secrets:
                 secrets_dict = recursive_to_dict(st.secrets['google_credentials'])
                 
-                # Wrap in "installed" if missing (Fixes format issues)
+                # Fix format if user pasted "flat" keys
                 if "installed" not in secrets_dict and "web" not in secrets_dict:
                     secrets_dict = {"installed": secrets_dict}
                 
-                # Reads config from MEMORY, ignoring broken files
+                # This line prevents the JSONDecodeError!
                 flow = InstalledAppFlow.from_client_config(secrets_dict, SCOPES)
                 
-            # LOCAL LOGIC: Fallback to file if secrets don't exist
             elif os.path.exists('credentials.json'):
+                # Fallback for local testing
                 flow = InstalledAppFlow.from_client_secrets_file('credentials.json', SCOPES)
             else:
                 st.error("🚨 Missing Credentials")
-                st.markdown("""<div class="error-box">No credentials found in Secrets or local file.</div>""", unsafe_allow_html=True)
                 return None
 
-            # Run the auth flow
+            # open_browser=False prevents server crashes on Cloud
             creds = flow.run_local_server(port=0, open_browser=False)
             
-        # Save token for next time
         with open('token.pickle', 'wb') as token:
             pickle.dump(creds, token)
 
     return build('gmail', 'v1', credentials=creds)
 
-# --- SCANNER ---
+# --- SCANNER LOGIC ---
 def categorize_subscription(subject, sender, snippet):
     text = f"{subject} {sender} {snippet}".lower()
     if any(w in text for w in ['netflix', 'hulu', 'disney', 'hbo', 'prime', 'youtube']): return "Streaming"
