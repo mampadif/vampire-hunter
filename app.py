@@ -1,4 +1,4 @@
-import streamlit as st
+ import streamlit as st
 import os
 import pickle
 import re
@@ -30,22 +30,33 @@ def recursive_to_dict(obj):
         return [recursive_to_dict(v) for v in obj]
     return obj
 
-# --- AUTHENTICATION LOGIC (MEMORY ONLY) ---
+# --- AUTHENTICATION LOGIC (WITH SELF-CLEANING) ---
 @st.cache_data(show_spinner=False)
 def get_gmail_service():
     creds = None
     
-    # 1. Load Token if exists
+    # 1. ZOMBIE KILLER: Force delete the corrupt file if it exists
+    # This fixes the JSONDecodeError by removing the broken file from the server.
+    if os.path.exists('credentials.json'):
+        try:
+            # Only delete if we have secrets (meaning we are on Cloud and should use memory)
+            if 'google_credentials' in st.secrets:
+                os.remove('credentials.json')
+                print("🧹 Deleted corrupt credentials.json file.")
+        except Exception as e:
+            print(f"⚠️ Could not delete file: {e}")
+
+    # 2. Load Token if exists
     if os.path.exists('token.pickle'):
         with open('token.pickle', 'rb') as token:
             creds = pickle.load(token)
     
-    # 2. Login Flow
+    # 3. Login Flow
     if not creds or not creds.valid:
         if creds and creds.expired and creds.refresh_token:
             creds.refresh(Request())
         else:
-            # DIRECT MEMORY READ: No file creation needed
+            # CLOUD LOGIC: Read directly from Secrets (Memory)
             if 'google_credentials' in st.secrets:
                 secrets_dict = recursive_to_dict(st.secrets['google_credentials'])
                 
@@ -53,14 +64,15 @@ def get_gmail_service():
                 if "installed" not in secrets_dict and "web" not in secrets_dict:
                     secrets_dict = {"installed": secrets_dict}
                 
-                # This line prevents the JSONDecodeError!
+                # This reads from RAM, not the hard drive
                 flow = InstalledAppFlow.from_client_config(secrets_dict, SCOPES)
                 
+            # LOCAL LOGIC: Only use file if we are NOT on the cloud
             elif os.path.exists('credentials.json'):
-                # Fallback for local testing
                 flow = InstalledAppFlow.from_client_secrets_file('credentials.json', SCOPES)
             else:
                 st.error("🚨 Missing Credentials")
+                st.info("Check your Streamlit Secrets or local credentials.json file.")
                 return None
 
             # open_browser=False prevents server crashes on Cloud
