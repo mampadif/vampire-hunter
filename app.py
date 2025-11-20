@@ -22,6 +22,16 @@ SCOPES = ['https://www.googleapis.com/auth/gmail.readonly']
 
 st.set_page_config(page_title="Vampire Subscription Hunter", page_icon="🧛", layout="wide", initial_sidebar_state="expanded")
 
+# --- IMPACT VERIFICATION (Meta Tag Injection) ---
+st.markdown(
+    """
+    <div style="display:none">
+        <meta name='impact-site-verification' value='09b002e9-e85d-4aef-a104-50aeeade5923'>
+    </div>
+    """,
+    unsafe_allow_html=True
+)
+
 # --- CUSTOM CSS ---
 st.markdown("""
 <style>
@@ -215,3 +225,4 @@ if scan_button:
 
 st.markdown("---")
 st.markdown("<div style='text-align: center; color: #666;'>⚠️ Estimates based on email subject lines. Verify with your bank.</div>", unsafe_allow_html=True)
+
