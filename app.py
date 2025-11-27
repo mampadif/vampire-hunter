@@ -1,4 +1,5 @@
 import streamlit as st
+import streamlit.components.v1 as components
 import os
 import pickle
 import re
@@ -20,13 +21,27 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# --- IMPACT SITE VERIFICATION (VISIBLE) ---
-# This text is visible so the Impact bot can verify you.
-# Once you get the green checkmark on Impact, you can delete this line.
+# --- IMPACT SITE VERIFICATION (ADVANCED METHOD) ---
+# 1. We keep the visible text just in case human reviewers look at it.
 st.write("Impact-Site-Verification: 09b002e9-e85d-4aef-a104-50aeeade5923")
 
+# 2. We inject it into the HTML structure so bots can find it in the source code.
+components.html(
+    """
+    <html>
+        <head>
+            <meta name="impact-site-verification" content="09b002e9-e85d-4aef-a104-50aeeade5923" />
+        </head>
+        <body>
+            <div style="display:none;">Impact-Site-Verification: 09b002e9-e85d-4aef-a104-50aeeade5923</div>
+        </body>
+    </html>
+    """,
+    height=0, # Keeps it invisible to the user layout
+    width=0
+)
+
 # --- CONFIGURATION & AFFILIATE LINKS ---
-# Update these with your real tracking links when approved
 LINK_ROCKET_MONEY = "https://www.rocketmoney.com/?utm_source=vampire_hunter_tool&utm_medium=referral&utm_campaign=audit_tool" 
 LINK_POCKETGUARD = "https://pocketguard.com/?utm_source=vampire_hunter_tool&utm_medium=referral&utm_campaign=audit_tool"
 LINK_TRIM = "https://www.asktrim.com/?utm_source=vampire_hunter_tool&utm_medium=referral&utm_campaign=audit_tool"
@@ -89,7 +104,6 @@ st.markdown("""
 def get_gmail_service():
     creds = None
 
-    # 1. TRY CLOUD SECRETS (For Streamlit Cloud)
     try:
         if 'token_pickle' in st.secrets:
             try:
@@ -100,7 +114,6 @@ def get_gmail_service():
     except Exception:
         pass
 
-    # 2. TRY LOCAL FILE (For Local Testing)
     if not creds and os.path.exists('token.pickle'):
         try:
             with open('token.pickle', 'rb') as token:
@@ -108,7 +121,6 @@ def get_gmail_service():
         except Exception:
             pass
 
-    # 3. REFRESH IF EXPIRED
     if creds and creds.expired and creds.refresh_token:
         try:
             creds.refresh(Request())
@@ -116,7 +128,6 @@ def get_gmail_service():
             st.error("Login expired. Please re-connect.")
             return None
 
-    # 4. FRESH LOGIN (Local Only)
     if not creds or not creds.valid:
         if os.path.exists('credentials.json'):
              try:
