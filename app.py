@@ -32,6 +32,7 @@ st.markdown(
 )
 
 # --- CONFIGURATION & AFFILIATE LINKS ---
+# These are placeholders. Update them when you get approved by their affiliate programs.
 LINK_ROCKET_MONEY = "https://www.rocketmoney.com/?utm_source=vampire_hunter_tool&utm_medium=referral&utm_campaign=audit_tool" 
 LINK_POCKETGUARD = "https://pocketguard.com/?utm_source=vampire_hunter_tool&utm_medium=referral&utm_campaign=audit_tool"
 LINK_TRIM = "https://www.asktrim.com/?utm_source=vampire_hunter_tool&utm_medium=referral&utm_campaign=audit_tool"
@@ -113,8 +114,11 @@ def get_gmail_service():
 
     # 2. TRY LOCAL FILE (Development)
     if not creds and os.path.exists('token.pickle'):
-        with open('token.pickle', 'rb') as token:
-            creds = pickle.load(token)
+        try:
+            with open('token.pickle', 'rb') as token:
+                creds = pickle.load(token)
+        except Exception:
+            pass
 
     # 3. REFRESH IF EXPIRED
     if creds and creds.expired and creds.refresh_token:
@@ -211,6 +215,19 @@ with st.sidebar:
     st.markdown("### 🔧 Configuration")
     scan_days = st.slider("Scan Period (days)", 30, 180, 90)
     st.info("🔒 **Privacy:** Data is processed locally. We never see your emails.")
+
+    # --- CLOUD DEPLOYMENT HELPER ---
+    # This helps you generate the secret you need for Streamlit Cloud
+    st.markdown("---")
+    if st.checkbox("Show Login Token for Cloud"):
+        if os.path.exists('token.pickle'):
+            with open('token.pickle', 'rb') as token:
+                creds = pickle.load(token)
+                token_b64 = base64.b64encode(pickle.dumps(creds)).decode()
+                st.markdown("**Copy this into your Streamlit Cloud Secrets:**")
+                st.code(f'token_pickle = "{token_b64}"', language='toml')
+        else:
+            st.warning("Run locally and login first to generate a token.")
 
 col1, col2 = st.columns([2, 1])
 with col1: st.markdown('<div class="warning-box"><h4>💡 Did You Know?</h4>The average person wastes <strong>$200+ per month</strong> on forgotten subscriptions.</div>', unsafe_allow_html=True)
