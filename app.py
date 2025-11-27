@@ -5,7 +5,6 @@ import re
 import pandas as pd
 import plotly.express as px
 import time
-import json
 import base64
 from datetime import datetime
 from google_auth_oauthlib.flow import InstalledAppFlow
@@ -25,7 +24,9 @@ st.set_page_config(
 # This injects the verification meta tag so Impact can verify you own the site
 st.markdown(
     """
-    <meta name="impact-site-verification" content="09b002e9-e85d-4aef-a104-50aeeade5923">
+    <div style="display:none;">
+        Impact-Site-Verification: 09b002e9-e85d-4aef-a104-50aeeade5923
+    </div>
     """,
     unsafe_allow_html=True
 )
@@ -40,12 +41,48 @@ SCOPES = ['https://www.googleapis.com/auth/gmail.readonly']
 # --- CUSTOM CSS ---
 st.markdown("""
 <style>
-    .main-header { font-size: 3rem; color: #1f77b4; text-align: center; margin-bottom: 2rem; font-weight: 700; }
+    /* Header Styling */
+    .main-header { 
+        font-size: 3rem; 
+        color: #1f77b4; 
+        text-align: center; 
+        margin-bottom: 2rem; 
+        font-weight: 700; 
+    }
+    
+    /* Metrics and Boxes */
     .metric-card { background-color: #f0f2f6; padding: 1.5rem; border-radius: 10px; border-left: 4px solid #1f77b4; }
     .success-box { background-color: #d4edda; border: 1px solid #c3e6cb; border-radius: 8px; padding: 1rem; margin: 1rem 0; color: #155724; }
     .warning-box { background-color: #fff3cd; border: 1px solid #ffeaa7; border-radius: 8px; padding: 1rem; margin: 1rem 0; color: #856404; }
-    .error-box { background-color: #f8d7da; border: 1px solid #f5c6cb; border-radius: 8px; padding: 1rem; margin: 1rem 0; color: #721c24; }
-    .cta-button { display: inline-block; padding: 12px 24px; margin: 10px; color: white; text-decoration: none; border-radius: 5px; font-weight: bold; text-align: center; }
+    
+    /* CTA Button Styling - Fixed for Visibility */
+    .button-container {
+        display: flex;
+        justify-content: center;
+        gap: 15px;
+        margin-top: 20px;
+        flex-wrap: wrap;
+    }
+    
+    .cta-button { 
+        display: inline-block; 
+        padding: 15px 25px; 
+        margin: 5px; 
+        color: white !important; /* Force White Text */
+        text-decoration: none; 
+        border-radius: 8px; 
+        font-weight: bold; 
+        text-align: center;
+        transition: transform 0.2s;
+    }
+    
+    .cta-button:hover {
+        transform: scale(1.05);
+        opacity: 0.9;
+        text-decoration: none;
+        color: white !important;
+    }
+
     .cta-rocket { background-color: #FF4B4B; }
     .cta-trim { background-color: #00C853; }
     .cta-guard { background-color: #2962FF; }
@@ -58,12 +95,12 @@ def recursive_to_dict(obj):
     if isinstance(obj, list): return [recursive_to_dict(v) for v in obj]
     return obj
 
-# --- AUTHENTICATION (UNIVERSAL: WORKS ON VPS AND CLOUD) ---
+# --- AUTHENTICATION ---
 @st.cache_data(show_spinner=False)
 def get_gmail_service():
     creds = None
 
-    # 1. TRY CLOUD SECRETS (With Safety Shield for VPS)
+    # 1. TRY CLOUD SECRETS (Production)
     try:
         if 'token_pickle' in st.secrets:
             try:
@@ -74,7 +111,7 @@ def get_gmail_service():
     except Exception:
         pass
 
-    # 2. TRY LOCAL FILE (Fallback for VPS)
+    # 2. TRY LOCAL FILE (Development)
     if not creds and os.path.exists('token.pickle'):
         with open('token.pickle', 'rb') as token:
             creds = pickle.load(token)
@@ -87,15 +124,20 @@ def get_gmail_service():
             st.error("Login expired. Please re-connect.")
             return None
 
-    # 4. FRESH LOGIN (Only works on Local/VPS)
+    # 4. FRESH LOGIN (Local Only)
     if not creds or not creds.valid:
         if os.path.exists('credentials.json'):
-             flow = InstalledAppFlow.from_client_secrets_file('credentials.json', SCOPES)
-             creds = flow.run_local_server(port=0)
-             with open('token.pickle', 'wb') as token: pickle.dump(creds, token)
+             try:
+                flow = InstalledAppFlow.from_client_secrets_file('credentials.json', SCOPES)
+                # This opens a browser window - only works locally
+                creds = flow.run_local_server(port=0)
+                with open('token.pickle', 'wb') as token: pickle.dump(creds, token)
+             except Exception as e:
+                st.warning("⚠️ Authentication requires a local browser.")
+                st.info("If you are on the cloud, ensure 'token_pickle' is set in st.secrets.")
+                return None
         else:
              st.warning("⚠️ Authentication Failed.")
-             st.info("Cloud Mode: Add 'token_pickle' to Secrets.")
              st.info("Local Mode: Ensure 'credentials.json' is in the folder.")
              return None
     
@@ -134,12 +176,14 @@ def scan_inbox(_service, days_back=90):
                 sender = next((h['value'] for h in headers if h['name'] == 'From'), "Unknown")
                 date = next((h['value'] for h in headers if h['name'] == 'Date'), "")
                 
+                # Regex to find currency amounts
                 cost_match = re.search(r'[\$\£\€](\d+[,.]?\d*\.\d{2})', snippet)
                 if not cost_match: cost_match = re.search(r'(\d+[,.]?\d*\.\d{2})\s*[\$\£\€]', snippet)
                 
                 cost = float(cost_match.group(1).replace(',', '')) if cost_match else 0.0
                 clean_sender = re.sub(r'<[^>]+>', '', sender).replace('"', '').strip()
                 
+                # Filter: Must cost money OR mention specific keywords
                 if cost > 0 or any(x in subject.lower() for x in ['renew', 'subscription', 'bill']):
                     found_subs.append({
                         "Sender": clean_sender,
@@ -202,18 +246,26 @@ if scan_button:
                 st.plotly_chart(fig_bar, use_container_width=True)
 
             st.subheader("📋 Detailed Subscription List")
-            st.dataframe(df[['Sender', 'Cost', 'Subject', 'Date', 'Type']], column_config={"Cost": st.column_config.NumberColumn(format="$%.2f")}, use_container_width=True)
+            st.dataframe(
+                df[['Sender', 'Cost', 'Subject', 'Date', 'Type']], 
+                column_config={"Cost": st.column_config.NumberColumn(format="$%.2f")}, 
+                use_container_width=True
+            )
             
-            st.download_button("📥 Export to CSV", df.to_csv(index=False), f"vampire_scan_{datetime.now().strftime('%Y%m%d')}.csv", "text/csv")
+            # Export CSV
+            csv = df.to_csv(index=False).encode('utf-8')
+            st.download_button("📥 Export to CSV", csv, f"vampire_scan_{datetime.now().strftime('%Y%m%d')}.csv", "text/csv")
 
             st.markdown("---")
+            
+            # THE MONEY SAVING SECTION (CTAs)
             st.markdown(f"""
             <div style="background-color: #e3f2fd; padding: 2rem; border-radius: 10px; text-align: center; border: 1px solid #90caf9;">
                 <h2 style="color: #0d47a1;">🛑 Stop Losing Money!</h2>
                 <p style="font-size: 1.1rem;">You are wasting <strong>${df['Cost'].sum():.2f} / month</strong>. Use these tools to fix it now:</p>
-                <div style="margin-top: 20px;">
-                    <a href="{LINK_ROCKET_MONEY}" target="_blank" class="cta-button cta-rocket">✂️ Cancel with Rocket Money</a>
-                    <a href="{LINK_TRIM}" target="_blank" class="cta-button cta-trim">📉 Lower Bills with Trim</a>
+                <div class="button-container">
+                    <a href="{LINK_ROCKET_MONEY}" target="_blank" class="cta-button cta-rocket">📉 Cancel with Rocket Money</a>
+                    <a href="{LINK_TRIM}" target="_blank" class="cta-button cta-trim">💸 Lower Bills with Trim</a>
                     <a href="{LINK_POCKETGUARD}" target="_blank" class="cta-button cta-guard">🛡️ Budget with PocketGuard</a>
                 </div>
             </div>
