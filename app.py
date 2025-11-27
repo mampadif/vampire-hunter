@@ -13,24 +13,29 @@ from google.auth.transport.requests import Request
 from googleapiclient.discovery import build
 from googleapiclient.errors import HttpError
 
+# --- PAGE CONFIG ---
+st.set_page_config(
+    page_title="Vampire Subscription Hunter", 
+    page_icon="🧛", 
+    layout="wide", 
+    initial_sidebar_state="expanded"
+)
+
+# --- IMPACT SITE VERIFICATION ---
+# This injects the verification meta tag so Impact can verify you own the site
+st.markdown(
+    """
+    <meta name="impact-site-verification" content="09b002e9-e85d-4aef-a104-50aeeade5923">
+    """,
+    unsafe_allow_html=True
+)
+
 # --- CONFIGURATION & AFFILIATE LINKS ---
 LINK_ROCKET_MONEY = "https://www.rocketmoney.com/?utm_source=vampire_hunter_tool&utm_medium=referral&utm_campaign=audit_tool" 
 LINK_POCKETGUARD = "https://pocketguard.com/?utm_source=vampire_hunter_tool&utm_medium=referral&utm_campaign=audit_tool"
 LINK_TRIM = "https://www.asktrim.com/?utm_source=vampire_hunter_tool&utm_medium=referral&utm_campaign=audit_tool"
 
 SCOPES = ['https://www.googleapis.com/auth/gmail.readonly']
-
-st.set_page_config(page_title="Vampire Subscription Hunter", page_icon="🧛", layout="wide", initial_sidebar_state="expanded")
-
-# --- IMPACT VERIFICATION (Meta Tag Injection) ---
-st.markdown(
-    """
-    <div style="display:none">
-        <meta name='impact-site-verification' value='09b002e9-e85d-4aef-a104-50aeeade5923'>
-    </div>
-    """,
-    unsafe_allow_html=True
-)
 
 # --- CUSTOM CSS ---
 st.markdown("""
@@ -59,7 +64,6 @@ def get_gmail_service():
     creds = None
 
     # 1. TRY CLOUD SECRETS (With Safety Shield for VPS)
-    # This block runs on Streamlit Cloud. On VPS, it fails silently and moves to step 2.
     try:
         if 'token_pickle' in st.secrets:
             try:
@@ -68,11 +72,9 @@ def get_gmail_service():
             except Exception:
                 pass 
     except Exception:
-        # This catches the "SecretsNotFoundError" on your VPS so the app doesn't crash
         pass
 
     # 2. TRY LOCAL FILE (Fallback for VPS)
-    # If Cloud Secrets didn't work (or we are on VPS), check for the file.
     if not creds and os.path.exists('token.pickle'):
         with open('token.pickle', 'rb') as token:
             creds = pickle.load(token)
@@ -87,14 +89,11 @@ def get_gmail_service():
 
     # 4. FRESH LOGIN (Only works on Local/VPS)
     if not creds or not creds.valid:
-        # If we are here, we need to log in.
         if os.path.exists('credentials.json'):
-             # This will trigger the "Link in Terminal" flow on your VPS
              flow = InstalledAppFlow.from_client_secrets_file('credentials.json', SCOPES)
              creds = flow.run_local_server(port=0)
              with open('token.pickle', 'wb') as token: pickle.dump(creds, token)
         else:
-             # If we are on Cloud and have no secrets, we can't login.
              st.warning("⚠️ Authentication Failed.")
              st.info("Cloud Mode: Add 'token_pickle' to Secrets.")
              st.info("Local Mode: Ensure 'credentials.json' is in the folder.")
@@ -225,4 +224,3 @@ if scan_button:
 
 st.markdown("---")
 st.markdown("<div style='text-align: center; color: #666;'>⚠️ Estimates based on email subject lines. Verify with your bank.</div>", unsafe_allow_html=True)
-
