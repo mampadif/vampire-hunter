@@ -20,19 +20,13 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# --- IMPACT SITE VERIFICATION ---
-# This injects the verification meta tag so Impact can verify you own the site
-st.markdown(
-    """
-    <div style="display:none;">
-        Impact-Site-Verification: 09b002e9-e85d-4aef-a104-50aeeade5923
-    </div>
-    """,
-    unsafe_allow_html=True
-)
+# --- IMPACT SITE VERIFICATION (VISIBLE) ---
+# This text is visible so the Impact bot can verify you.
+# Once you get the green checkmark on Impact, you can delete this line.
+st.write("Impact-Site-Verification: 09b002e9-e85d-4aef-a104-50aeeade5923")
 
 # --- CONFIGURATION & AFFILIATE LINKS ---
-# These are placeholders. Update them when you get approved by their affiliate programs.
+# Update these with your real tracking links when approved
 LINK_ROCKET_MONEY = "https://www.rocketmoney.com/?utm_source=vampire_hunter_tool&utm_medium=referral&utm_campaign=audit_tool" 
 LINK_POCKETGUARD = "https://pocketguard.com/?utm_source=vampire_hunter_tool&utm_medium=referral&utm_campaign=audit_tool"
 LINK_TRIM = "https://www.asktrim.com/?utm_source=vampire_hunter_tool&utm_medium=referral&utm_campaign=audit_tool"
@@ -56,7 +50,7 @@ st.markdown("""
     .success-box { background-color: #d4edda; border: 1px solid #c3e6cb; border-radius: 8px; padding: 1rem; margin: 1rem 0; color: #155724; }
     .warning-box { background-color: #fff3cd; border: 1px solid #ffeaa7; border-radius: 8px; padding: 1rem; margin: 1rem 0; color: #856404; }
     
-    /* CTA Button Styling - Fixed for Visibility */
+    /* CTA Button Styling */
     .button-container {
         display: flex;
         justify-content: center;
@@ -69,7 +63,7 @@ st.markdown("""
         display: inline-block; 
         padding: 15px 25px; 
         margin: 5px; 
-        color: white !important; /* Force White Text */
+        color: white !important; /* Force text to be white */
         text-decoration: none; 
         border-radius: 8px; 
         font-weight: bold; 
@@ -90,18 +84,12 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# --- HELPER: RECURSIVE DICT CONVERTER ---
-def recursive_to_dict(obj):
-    if hasattr(obj, "items"): return {k: recursive_to_dict(v) for k, v in obj.items()}
-    if isinstance(obj, list): return [recursive_to_dict(v) for v in obj]
-    return obj
-
 # --- AUTHENTICATION ---
 @st.cache_data(show_spinner=False)
 def get_gmail_service():
     creds = None
 
-    # 1. TRY CLOUD SECRETS (Production)
+    # 1. TRY CLOUD SECRETS (For Streamlit Cloud)
     try:
         if 'token_pickle' in st.secrets:
             try:
@@ -112,7 +100,7 @@ def get_gmail_service():
     except Exception:
         pass
 
-    # 2. TRY LOCAL FILE (Development)
+    # 2. TRY LOCAL FILE (For Local Testing)
     if not creds and os.path.exists('token.pickle'):
         try:
             with open('token.pickle', 'rb') as token:
@@ -133,16 +121,13 @@ def get_gmail_service():
         if os.path.exists('credentials.json'):
              try:
                 flow = InstalledAppFlow.from_client_secrets_file('credentials.json', SCOPES)
-                # This opens a browser window - only works locally
                 creds = flow.run_local_server(port=0)
                 with open('token.pickle', 'wb') as token: pickle.dump(creds, token)
              except Exception as e:
                 st.warning("⚠️ Authentication requires a local browser.")
-                st.info("If you are on the cloud, ensure 'token_pickle' is set in st.secrets.")
                 return None
         else:
              st.warning("⚠️ Authentication Failed.")
-             st.info("Local Mode: Ensure 'credentials.json' is in the folder.")
              return None
     
     return build('gmail', 'v1', credentials=creds)
@@ -180,14 +165,12 @@ def scan_inbox(_service, days_back=90):
                 sender = next((h['value'] for h in headers if h['name'] == 'From'), "Unknown")
                 date = next((h['value'] for h in headers if h['name'] == 'Date'), "")
                 
-                # Regex to find currency amounts
                 cost_match = re.search(r'[\$\£\€](\d+[,.]?\d*\.\d{2})', snippet)
                 if not cost_match: cost_match = re.search(r'(\d+[,.]?\d*\.\d{2})\s*[\$\£\€]', snippet)
                 
                 cost = float(cost_match.group(1).replace(',', '')) if cost_match else 0.0
                 clean_sender = re.sub(r'<[^>]+>', '', sender).replace('"', '').strip()
                 
-                # Filter: Must cost money OR mention specific keywords
                 if cost > 0 or any(x in subject.lower() for x in ['renew', 'subscription', 'bill']):
                     found_subs.append({
                         "Sender": clean_sender,
@@ -217,17 +200,21 @@ with st.sidebar:
     st.info("🔒 **Privacy:** Data is processed locally. We never see your emails.")
 
     # --- CLOUD DEPLOYMENT HELPER ---
-    # This helps you generate the secret you need for Streamlit Cloud
     st.markdown("---")
-    if st.checkbox("Show Login Token for Cloud"):
+    st.markdown("### ☁️ Cloud Setup")
+    if st.checkbox("Generate Cloud Token"):
         if os.path.exists('token.pickle'):
             with open('token.pickle', 'rb') as token:
                 creds = pickle.load(token)
                 token_b64 = base64.b64encode(pickle.dumps(creds)).decode()
-                st.markdown("**Copy this into your Streamlit Cloud Secrets:**")
-                st.code(f'token_pickle = "{token_b64}"', language='toml')
+                st.success("Token Generated!")
+                st.markdown("**1. Copy this long string:**")
+                st.code(token_b64)
+                st.markdown("**2. Go to Streamlit Cloud -> App Settings -> Secrets**")
+                st.markdown("**3. Paste it like this:**")
+                st.code('token_pickle = "PASTE_HERE"', language='toml')
         else:
-            st.warning("Run locally and login first to generate a token.")
+            st.warning("You must run this app LOCALLY first and login to generate the token file.")
 
 col1, col2 = st.columns([2, 1])
 with col1: st.markdown('<div class="warning-box"><h4>💡 Did You Know?</h4>The average person wastes <strong>$200+ per month</strong> on forgotten subscriptions.</div>', unsafe_allow_html=True)
